@@ -1,10 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  X, Download, Heart, Tag, Trash2, ZoomIn, ZoomOut,
-  ChevronLeft, ChevronRight, RotateCcw, Info
+  X, Download, Heart, Tag, Trash2,
+  ChevronLeft, ChevronRight, Info
 } from 'lucide-react';
+import { createWorker } from 'tesseract.js';
 import type { UploadedFile, FileTag } from '../types/file';
 import { formatBytes, formatDate } from '../utils/fileUtils';
+import { extractReceiptData } from '../utils/receiptUtils';
 
 interface FilePreviewProps {
   file: UploadedFile;
@@ -19,18 +21,50 @@ interface FilePreviewProps {
 const AVAILABLE_TAGS: FileTag[] = ['Work', 'Personal', 'Important', 'Project', 'Draft', 'Media'];
 
 const categoryEmoji: Record<string, string> = {
-  image: '🖼️', video: '🎬', audio: '🎵', document: '📄',
-  code: '💻', spreadsheet: '📊', archive: '🗜️', other: '📦',
+  document: '📄',
+  other: '📦',
 };
+
 
 export const FilePreview: React.FC<FilePreviewProps> = ({
   file, allFiles, onClose, onNavigate, onToggleFavorite, onDelete, onAddTag,
 }) => {
-  const [zoom, setZoom] = useState(1);
   const [showInfo, setShowInfo] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [fileText, setFileText] = useState(file.textContent || '');
+  const [extractedAmount, setExtractedAmount] = useState(file.extractedAmount || '');
+  const [ocrLoading, setOcrLoading] = useState(false);
+
+  useEffect(() => {
+    setFileText(file.textContent || '');
+    setExtractedAmount(file.extractedAmount || '');
+
+    if (file.category === 'image' && file.url) {
+      setOcrLoading(true);
+      extractReceiptData(file.url).then(({ extractedAmount, rawText }) => {
+        if (rawText && rawText.trim()) {
+          setFileText(rawText);
+          file.textContent = rawText;
+        }
+        if (extractedAmount) {
+          setExtractedAmount(extractedAmount);
+          file.extractedAmount = extractedAmount;
+          file.isReceipt = true;
+        }
+        setOcrLoading(false);
+      }).catch(e => {
+        console.warn('OCR error in preview:', e);
+        setOcrLoading(false);
+      });
+    }
+  }, [file]);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setFileText(newText);
+    file.textContent = newText;
+  };
+
 
   // Find adjacent files in same category
   const siblingFiles = allFiles.filter(f => f.category === file.category && !f.inTrash);
@@ -57,79 +91,143 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   };
 
   const renderContent = () => {
-    switch (file.category) {
-      case 'image':
-        return (
-          <div className="preview-image-wrapper">
+    if (file.category === 'image' && file.url) {
+      return (
+        <div className="preview-image-container" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          width: '100%',
+          height: '100%',
+          overflowY: 'auto',
+          padding: '12px',
+          boxSizing: 'border-box'
+        }}>
+          <div className="preview-image-wrapper" style={{ maxHeight: '220px', flexShrink: 0 }}>
             <img
               src={file.url}
               alt={file.name}
               className="preview-image"
-              style={{ transform: `scale(${zoom})` }}
               draggable={false}
+              style={{ maxHeight: '200px' }}
             />
           </div>
-        );
 
-      case 'video':
-        return (
-          <div className="preview-video-wrapper">
-            <video
-              ref={videoRef}
-              src={file.url}
-              controls
-              className="preview-video"
-            >
-              Your browser does not support video preview.
-            </video>
-          </div>
-        );
-
-      case 'audio':
-        return (
-          <div className="preview-audio-wrapper">
-            <div className="audio-art">
-              <div className="audio-waveform-rings">
-                {[120, 90, 60, 36].map((size, i) => (
-                  <div key={i} className="audio-ring" style={{ width: size, height: size, animationDelay: `${i * 0.15}s` }} />
-                ))}
-                <span className="audio-emoji">🎵</span>
-              </div>
-              <p className="audio-filename">{file.name}</p>
-              {file.duration && <p className="audio-duration">{Math.floor(file.duration / 60)}:{String(file.duration % 60).padStart(2, '0')}</p>}
+          <div className="preview-ocr-section" style={{
+            background: 'rgba(15, 23, 42, 0.7)',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            padding: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            flexShrink: 0
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>
+                Extracted Text &amp; Data
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setOcrLoading(true);
+                  extractReceiptData(file.url).then(({ extractedAmount, rawText }) => {
+                    setFileText(rawText || '');
+                    file.textContent = rawText || '';
+                    if (extractedAmount) {
+                      setExtractedAmount(extractedAmount);
+                      file.extractedAmount = extractedAmount;
+                    }
+                    setOcrLoading(false);
+                  }).catch(() => setOcrLoading(false));
+                }}
+                style={{
+                  background: 'rgba(99, 102, 241, 0.2)',
+                  border: '1px solid rgba(99, 102, 241, 0.4)',
+                  color: '#818cf8',
+                  borderRadius: '4px',
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                {ocrLoading ? 'Scanning...' : '⚡ Extract / Rescan'}
+              </button>
             </div>
-            <audio ref={audioRef} src={file.url} controls className="preview-audio-player" />
-          </div>
-        );
 
-      case 'spreadsheet':
-        return file.parsedCsv && file.parsedCsv.length > 0 ? (
-          <div className="preview-table-wrapper">
-            <table className="preview-table">
-              <thead>
-                <tr>
-                  {file.parsedCsv[0].map((col, i) => (
-                    <th key={i}>{col}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {file.parsedCsv.slice(1).map((row, ri) => (
-                  <tr key={ri}>
-                    {row.map((cell, ci) => <td key={ci}>{cell}</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : renderCodeFallback();
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '13px',
+              color: '#34d399',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px'
+            }}>
+              <span>Extracted Total Amount:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 700 }}>$</span>
+                <input
+                  type="text"
+                  value={extractedAmount}
+                  placeholder="47.40"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setExtractedAmount(val);
+                    file.extractedAmount = val;
+                    file.isReceipt = true;
+                  }}
+                  style={{
+                    background: 'rgba(2, 6, 23, 0.6)',
+                    border: '1px solid rgba(52, 211, 153, 0.4)',
+                    borderRadius: '4px',
+                    color: '#34d399',
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    padding: '2px 8px',
+                    width: '90px',
+                    outline: 'none',
+                    textAlign: 'right'
+                  }}
+                />
+              </div>
+            </div>
 
-      case 'code':
-      case 'document':
-      default:
-        return renderCodeFallback();
+            <textarea
+              className="preview-code-editable"
+              value={fileText}
+              onChange={handleTextChange}
+              placeholder={ocrLoading ? "Extracting text from image..." : "No text extracted. Type here..."}
+              style={{
+                width: '100%',
+                minHeight: '130px',
+                maxHeight: '220px',
+                background: 'rgba(2, 6, 23, 0.6)',
+                color: '#e2e8f0',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '6px',
+                padding: '10px',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                lineHeight: '1.5',
+                resize: 'vertical',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+        </div>
+      );
     }
+    return renderCodeFallback();
   };
+
+
 
   const renderCodeFallback = () => {
     if (!file.textContent) {
@@ -156,7 +254,31 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
 
     return (
       <div className="preview-code-wrapper">
-        <pre className="preview-code">{file.textContent}</pre>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', padding: '0 4px' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary, #94a3b8)', fontWeight: 500 }}>Editable Content</span>
+        </div>
+        <textarea
+          className="preview-code-editable"
+          value={fileText}
+          onChange={handleTextChange}
+          placeholder="No content available. Type here..."
+          style={{
+            width: '100%',
+            minHeight: '260px',
+            maxHeight: '400px',
+            background: 'rgba(15, 23, 42, 0.6)',
+            color: '#e2e8f0',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '8px',
+            padding: '12px',
+            fontFamily: 'monospace',
+            fontSize: '13px',
+            lineHeight: '1.5',
+            resize: 'vertical',
+            outline: 'none',
+            boxSizing: 'border-box'
+          }}
+        />
       </div>
     );
   };
@@ -176,21 +298,6 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
             </span>
           </div>
           <div className="preview-topbar-actions">
-            {file.category === 'image' && (
-              <>
-                <button className="icon-btn-sm" onClick={() => setZoom(z => Math.min(z + 0.25, 3))} aria-label="Zoom in">
-                  <ZoomIn size={16} />
-                </button>
-                <button className="icon-btn-sm" onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} aria-label="Zoom out">
-                  <ZoomOut size={16} />
-                </button>
-                {zoom !== 1 && (
-                  <button className="icon-btn-sm" onClick={() => setZoom(1)} aria-label="Reset zoom">
-                    <RotateCcw size={15} />
-                  </button>
-                )}
-              </>
-            )}
             <button className="icon-btn-sm" onClick={() => setShowInfo(v => !v)} aria-label="Toggle file info">
               <Info size={16} />
             </button>

@@ -1,10 +1,12 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { Upload, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Upload, X, AlertCircle, CheckCircle2, ScanLine } from 'lucide-react';
 import { getFileCategory, fileToDataURL, fileToText, parseCSV, formatBytes } from '../utils/fileUtils';
+import { extractReceiptData } from '../utils/receiptUtils';
 import type { UploadedFile, FileTag } from '../types/file';
 
 interface UploadZoneProps {
   onFilesUploaded: (files: UploadedFile[]) => void;
+  onFileUpdated?: (file: UploadedFile) => void;
   onClose?: () => void;
 }
 
@@ -17,11 +19,12 @@ interface UploadProgress {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
-export const UploadZone: React.FC<UploadZoneProps> = ({ onFilesUploaded, onClose }) => {
+export const UploadZone: React.FC<UploadZoneProps> = ({ onFilesUploaded, onFileUpdated, onClose }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [progresses, setProgresses] = useState<UploadProgress[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [scanningReceipt, setScanningReceipt] = useState(false);
 
   const processFiles = useCallback(async (rawFiles: File[]) => {
     if (rawFiles.length === 0) return;
@@ -93,10 +96,27 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onFilesUploaded, onClose
           textContent,
           parsedCsv,
           jsonContent,
+          isReceipt: false,
+          extractedAmount: null,
         };
 
         results.push(uploadedFile);
         setProgresses(prev => prev.map((x, idx) => idx === i ? { ...x, progress: 100, status: 'done' } : x));
+
+        // Fire async OCR for images after upload — does not block progress
+        if (category === 'image' && onFileUpdated) {
+          setScanningReceipt(true);
+          extractReceiptData(url).then(({ isReceipt, extractedAmount, rawText }) => {
+            const updated = {
+              ...uploadedFile,
+              isReceipt,
+              extractedAmount,
+              textContent: rawText || uploadedFile.textContent
+            };
+            onFileUpdated(updated);
+            setScanningReceipt(false);
+          }).catch(() => setScanningReceipt(false));
+        }
       } catch (err: any) {
         setProgresses(prev => prev.map((x, idx) =>
           idx === i ? { ...x, progress: 100, status: 'error', error: err.message || 'Upload failed' } : x
@@ -167,36 +187,12 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onFilesUploaded, onClose
               <Upload size={36} className="drop-zone-icon" />
             </div>
             <p className="drop-zone-title">Tap to browse or drop files</p>
-            <p className="drop-zone-subtitle">Images, audio, video, code, docs &amp; more</p>
+            <p className="drop-zone-subtitle">PDF, Word, Text, Markdown &amp; more</p>
             <p className="drop-zone-limit">Max 50 MB per file</p>
           </div>
 
           {/* Quick action pills */}
           <div className="upload-quick-actions">
-            <button className="quick-action-btn" onClick={() => {
-              if (inputRef.current) {
-                inputRef.current.accept = 'image/*';
-                inputRef.current.click();
-              }
-            }}>
-              📷 Photos
-            </button>
-            <button className="quick-action-btn" onClick={() => {
-              if (inputRef.current) {
-                inputRef.current.accept = 'video/*';
-                inputRef.current.click();
-              }
-            }}>
-              🎬 Videos
-            </button>
-            <button className="quick-action-btn" onClick={() => {
-              if (inputRef.current) {
-                inputRef.current.accept = 'audio/*';
-                inputRef.current.click();
-              }
-            }}>
-              🎵 Audio
-            </button>
             <button className="quick-action-btn" onClick={() => {
               if (inputRef.current) {
                 inputRef.current.accept = '.pdf,.doc,.docx,.txt,.md';
@@ -211,7 +207,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onFilesUploaded, onClose
             ref={inputRef}
             type="file"
             multiple
-            accept="*/*"
+            accept=".pdf,.doc,.docx,.txt,.md,.csv,.xls,.xlsx,.ppt,.pptx,.odt,.rtf"
             style={{ display: 'none' }}
             onChange={handleInputChange}
             aria-label="File input"

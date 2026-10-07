@@ -22,6 +22,10 @@ export interface UploadedFile {
   textContent?: string; // for text/code/csv/json
   parsedCsv?: string[][]; // for csv tabular view
   jsonContent?: any; // for json preview
+
+  // Receipt extraction
+  isReceipt?: boolean;
+  extractedAmount?: string | null;
 }
 
 export type ViewMode = 'grid' | 'list';

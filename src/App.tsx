@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
-  Upload, Grid, List, Moon, Sun, Smartphone, Monitor,
+  Upload, Grid, List, Moon, Sun, Monitor,
   Trash2, RefreshCcw, Plus
 } from 'lucide-react';
 import type { UploadedFile, FilterState, FileTag } from './types/file';

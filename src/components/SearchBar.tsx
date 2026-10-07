@@ -9,14 +9,8 @@ interface SearchBarProps {
 }
 
 const CATEGORIES: { value: FileCategory | 'all'; label: string; emoji: string }[] = [
-  { value: 'all',         label: 'All',      emoji: '📁' },
-  { value: 'image',       label: 'Images',   emoji: '🖼️' },
-  { value: 'video',       label: 'Videos',   emoji: '🎬' },
-  { value: 'audio',       label: 'Audio',    emoji: '🎵' },
-  { value: 'document',    label: 'Docs',     emoji: '📄' },
-  { value: 'code',        label: 'Code',     emoji: '💻' },
-  { value: 'spreadsheet', label: 'Sheets',   emoji: '📊' },
-  { value: 'archive',     label: 'Archives', emoji: '🗜️' },
+  { value: 'all',      label: 'All',  emoji: '📁' },
+  { value: 'document', label: 'Docs', emoji: '📄' },
 ];
 
 const TAGS: FileTag[] = ['Work', 'Personal', 'Important', 'Project', 'Draft', 'Media'];

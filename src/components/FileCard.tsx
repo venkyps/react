@@ -12,19 +12,15 @@ interface FileCardProps {
 }
 
 const categoryColors: Record<string, { bg: string; text: string }> = {
-  image:       { bg: 'rgba(99,102,241,0.18)',  text: '#818cf8' },
-  video:       { bg: 'rgba(236,72,153,0.18)',  text: '#f472b6' },
-  audio:       { bg: 'rgba(16,185,129,0.18)',  text: '#34d399' },
-  document:    { bg: 'rgba(245,158,11,0.18)',  text: '#fbbf24' },
-  code:        { bg: 'rgba(6,182,212,0.18)',   text: '#22d3ee' },
-  spreadsheet: { bg: 'rgba(132,204,22,0.18)',  text: '#a3e635' },
-  archive:     { bg: 'rgba(168,85,247,0.18)',  text: '#c084fc' },
-  other:       { bg: 'rgba(100,116,139,0.18)', text: '#94a3b8' },
+  image:    { bg: 'rgba(99,102,241,0.18)',  text: '#818cf8' },
+  document: { bg: 'rgba(245,158,11,0.18)', text: '#fbbf24' },
+  other:    { bg: 'rgba(100,116,139,0.18)', text: '#94a3b8' },
 };
 
 const categoryEmoji: Record<string, string> = {
-  image: '🖼️', video: '🎬', audio: '🎵', document: '📄',
-  code: '💻', spreadsheet: '📊', archive: '🗜️', other: '📦',
+  image:    '🖼️',
+  document: '📄',
+  other:    '📦',
 };
 
 export const FileCard: React.FC<FileCardProps> = ({
@@ -48,15 +44,22 @@ export const FileCard: React.FC<FileCardProps> = ({
           {file.category === 'image' && file.url ? (
             <img src={file.url} alt={file.name} className="file-list-img" />
           ) : (
-            <span className="file-list-emoji">{categoryEmoji[file.category]}</span>
+            <span className="file-list-emoji">{categoryEmoji[file.category] ?? '📦'}</span>
           )}
         </div>
 
         {/* Info */}
         <div className="file-list-info">
-          <p className="file-list-name" title={file.name}>
-            {file.name.length > 30 ? `${file.name.slice(0, 27)}…` : file.name}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <p className="file-list-name" title={file.name}>
+              {file.name.length > 25 ? `${file.name.slice(0, 22)}…` : file.name}
+            </p>
+            {file.extractedAmount && (
+              <span className="file-extracted-amount-badge">
+                ${file.extractedAmount}
+              </span>
+            )}
+          </div>
           <p className="file-list-meta">
             {formatBytes(file.size)} · {formatDate(file.uploadDate)}
           </p>
@@ -95,7 +98,7 @@ export const FileCard: React.FC<FileCardProps> = ({
           <img src={file.url} alt={file.name} className="file-card-img" />
         ) : (
           <div className="file-card-icon">
-            <span>{categoryEmoji[file.category]}</span>
+            <span>{categoryEmoji[file.category] ?? '📦'}</span>
           </div>
         )}
 
@@ -134,9 +137,16 @@ export const FileCard: React.FC<FileCardProps> = ({
 
       {/* Card Body */}
       <div className="file-card-body">
-        <p className="file-card-name" title={file.name}>
-          {file.name.length > 18 ? `${file.name.slice(0, 15)}…${file.name.slice(file.name.lastIndexOf('.'))}` : file.name}
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+          <p className="file-card-name" title={file.name}>
+            {file.name.length > 18 ? `${file.name.slice(0, 15)}…${file.name.slice(file.name.lastIndexOf('.'))}` : file.name}
+          </p>
+          {file.extractedAmount && (
+            <span className="file-extracted-amount-badge small">
+              ${file.extractedAmount}
+            </span>
+          )}
+        </div>
         <div className="file-card-meta-row">
           <span className="file-size-badge" style={{ background: colors.bg, color: colors.text }}>
             {file.category}
@@ -154,3 +164,4 @@ export const FileCard: React.FC<FileCardProps> = ({
     </div>
   );
 };
+
